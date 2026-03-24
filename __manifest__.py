@@ -3,7 +3,7 @@
     "version": "19.0.1.0.0",
     "category": "Services",
     "summary": "Odoo kullanim rehberligi icin yerel yapay zeka destekli sohbet asistani",
-    "author": "OpenAI",
+    "author": "Rasim Okutan",
     "license": "LGPL-3",
     "depends": ["base", "web", "mail"],
     "data": [
