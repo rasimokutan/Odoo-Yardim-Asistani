@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_res_config_settings_chatbot_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.odoo.help.assistant</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app string="Yardim Asistani" name="odoo_help_assistant" groups="base.group_system">
+                    <block title="Odoo Yardim Asistani">
+                        <setting string="Yardim asistani aktif" help="Bu ayar aciksa kullanicilar Odoo Yardim Asistani ile sohbet edebilir.">
+                            <field name="chatbot_enabled"/>
+                        </setting>
+                        <setting string="LLM saglayicisi" help="Varsayilan olarak yerel Ollama servisi kullanilir.">
+                            <field name="chatbot_provider"/>
+                        </setting>
+                        <setting string="Ollama adresi" help="Ollama HTTP servisine tam erisim adresini girin.">
+                            <field name="chatbot_ollama_base_url" placeholder="http://127.0.0.1:11434"/>
+                        </setting>
+                        <setting string="Model adi" help="Ollama uzerinden kullanilacak sohbet modelinin adini girin.">
+                            <field name="chatbot_model_name" placeholder="llama3.2:3b"/>
+                        </setting>
+                        <setting string="Yaraticilik seviyesi" help="Destek ve yonlendirme senaryolari icin dusuk tutulmasi onerilir.">
+                            <field name="chatbot_temperature"/>
+                        </setting>
+                        <setting string="Azami cevap uzunlugu" help="Daha kisa ve kontrollu cevaplar icin bu degeri makul tutun.">
+                            <field name="chatbot_max_tokens"/>
+                        </setting>
+                        <setting string="Zaman asimi" help="Ollama cevabi uzun suruyorsa bu sureyi artirabilirsiniz.">
+                            <field name="chatbot_timeout"/>
+                        </setting>
+                        <setting string="Kullanici baglamini ekle" help="Kullanici adi, dil ve sirket bilgisi istege bagli olarak modele gonderilir.">
+                            <field name="chatbot_include_user_context"/>
+                        </setting>
+                        <setting string="Hazir Odoo ipuclari katmani" help="Satis, satin alma, stok, muhasebe ve CRM gibi alanlar icin ek ipuclari gonderilir.">
+                            <field name="chatbot_hint_layer_enabled"/>
+                        </setting>
+                        <setting string="Sistem yonlendirmesi" help="Asistanin davranisini ve cevap stilini belirleyen temel aciklamadir.">
+                            <field name="chatbot_system_prompt" placeholder="Asistan davranis talimati"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>

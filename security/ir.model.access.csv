@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_odoo_chatbot_session_user,access.odoo.chatbot.session.user,model_odoo_chatbot_session,base.group_user,1,1,1,0
+access_odoo_chatbot_session_manager,access.odoo.chatbot.session.manager,model_odoo_chatbot_session,base.group_system,1,1,1,1
+access_odoo_chatbot_message_user,access.odoo.chatbot.message.user,model_odoo_chatbot_message,base.group_user,1,0,1,0
+access_odoo_chatbot_message_manager,access.odoo.chatbot.message.manager,model_odoo_chatbot_message,base.group_system,1,1,1,1

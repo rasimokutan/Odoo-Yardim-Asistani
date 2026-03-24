@@ -1,0 +1,113 @@
+<templates xml:space="preserve">
+    <t t-name="odoo_help_assistant.ChatbotAction">
+        <div class="o_odoo_help_assistant">
+            <div class="o_odoo_help_assistant__hero">
+                <div>
+                    <p class="o_odoo_help_assistant__eyebrow">Yerel Yapay Zeka Destegi</p>
+                    <h1>Odoo Yardim Asistani</h1>
+                    <p class="o_odoo_help_assistant__subtitle">
+                        Odoo ekranlarinda ne yapmaniz gerektigini hizli ve pratik adimlarla ogrenin.
+                    </p>
+                </div>
+                <div class="o_odoo_help_assistant__hero_actions">
+                    <button class="btn btn-primary" t-on-click="createSession" t-att-disabled="state.creatingSession or !state.canUseChatbot">
+                        Yeni Sohbet
+                    </button>
+                </div>
+            </div>
+
+            <t t-if="state.loading">
+                <div class="o_odoo_help_assistant__panel o_odoo_help_assistant__status">
+                    Sohbet ortami yukleniyor...
+                </div>
+            </t>
+            <t t-elif="!state.canUseChatbot">
+                <div class="o_odoo_help_assistant__panel o_odoo_help_assistant__status o_odoo_help_assistant__status--error">
+                    Bu yardim asistanini kullanma yetkiniz bulunmuyor. Sistem yoneticinizle gorusun.
+                </div>
+            </t>
+            <t t-elif="!state.chatbotEnabled">
+                <div class="o_odoo_help_assistant__panel o_odoo_help_assistant__status o_odoo_help_assistant__status--warning">
+                    Yardim asistani ayarlardan pasif durumda. Yonetici kullanici ayarlari kontrol etmelidir.
+                </div>
+            </t>
+            <t t-else="">
+                <div class="o_odoo_help_assistant__layout">
+                    <aside class="o_odoo_help_assistant__sidebar o_odoo_help_assistant__panel">
+                        <div class="o_odoo_help_assistant__sidebar_head">
+                            <h2>Sohbetler</h2>
+                            <span t-esc="state.sessions.length"/>
+                        </div>
+                        <t t-if="!state.sessions.length">
+                            <div class="o_odoo_help_assistant__empty">
+                                Henuz bir sohbet yok. Yeni bir sohbet baslatarak Odoo hakkinda soru sorabilirsiniz.
+                            </div>
+                        </t>
+                        <div class="o_odoo_help_assistant__session_list">
+                            <t t-foreach="state.sessions" t-as="session" t-key="session.id">
+                                <button
+                                    class="o_odoo_help_assistant__session_item"
+                                    t-att-class="session.id === state.currentSessionId ? 'o_odoo_help_assistant__session_item o_odoo_help_assistant__session_item--active' : 'o_odoo_help_assistant__session_item'"
+                                    t-att-data-session-id="session.id"
+                                    t-on-click="onSessionClick"
+                                >
+                                    <strong t-esc="session.name"/>
+                                    <p t-esc="session.last_message_preview || 'Mesaj bekleniyor'"/>
+                                    <span t-esc="formatTimestamp(session.last_message_at)"/>
+                                </button>
+                            </t>
+                        </div>
+                    </aside>
+
+                    <section class="o_odoo_help_assistant__chat o_odoo_help_assistant__panel">
+                        <div class="o_odoo_help_assistant__chat_head">
+                            <div>
+                                <h2 t-esc="currentSession ? currentSession.name : 'Yeni sohbet'"/>
+                                <p>Asistan varsayilan olarak Turkce yanit verir ve emin olmadigi durumda bunu belirtir.</p>
+                            </div>
+                        </div>
+
+                        <t t-if="state.error">
+                            <div class="o_odoo_help_assistant__inline_error" t-esc="state.error"/>
+                        </t>
+
+                        <div class="o_odoo_help_assistant__messages" t-ref="messageList">
+                            <t t-if="!displayedMessages.length">
+                                <div class="o_odoo_help_assistant__empty o_odoo_help_assistant__empty--large">
+                                    Ornek sorular:
+                                    "Satis teklifini nasil onaylarim?"
+                                    "Stok transferinde nereden islem yapacagim?"
+                                    "Fatura odeme eslestirmesi neden gorunmuyor?"
+                                </div>
+                            </t>
+                            <t t-foreach="displayedMessages" t-as="message" t-key="message.id">
+                                <div t-att-class="'o_odoo_help_assistant__bubble o_odoo_help_assistant__bubble--' + message.role">
+                                    <div class="o_odoo_help_assistant__bubble_meta">
+                                        <strong t-esc="message.role === 'user' ? 'Siz' : 'Asistan'"/>
+                                        <span t-esc="formatTimestamp(message.timestamp)"/>
+                                    </div>
+                                    <div class="o_odoo_help_assistant__bubble_body" t-esc="message.content"/>
+                                </div>
+                            </t>
+                        </div>
+
+                        <div class="o_odoo_help_assistant__composer">
+                            <textarea
+                                placeholder="Sorunuzu buraya yazin. Ornek: Stokta bir transferi nasil dogrularim?"
+                                t-model="state.draft"
+                                t-on-keydown="onDraftKeydown"
+                                t-att-disabled="state.sending"
+                            />
+                            <div class="o_odoo_help_assistant__composer_actions">
+                                <span>Enter ile gonder, Shift+Enter ile yeni satir</span>
+                                <button class="btn btn-primary" t-on-click="onSendMessage" t-att-disabled="state.sending">
+                                    Gonder
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </t>
+        </div>
+    </t>
+</templates>

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+        <record id="module_category_chatbot" model="ir.module.category">
+            <field name="name">Yapay Zeka Yardim</field>
+            <field name="description">Odoo yardim asistani erisim yetkileri</field>
+            <field name="sequence">35</field>
+        </record>
+
+        <record id="privilege_chatbot" model="res.groups.privilege">
+            <field name="name">Yardim Asistani</field>
+            <field name="description">Odoo Yardim Asistani kullanim ve yonetim yetkileri</field>
+            <field name="category_id" ref="odoo_help_assistant.module_category_chatbot"/>
+            <field name="sequence">35</field>
+        </record>
+
+        <record id="group_chatbot_user" model="res.groups">
+            <field name="name">Yardim Asistani Kullanicisi</field>
+            <field name="privilege_id" ref="odoo_help_assistant.privilege_chatbot"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="implied_by_ids" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+
+        <record id="group_chatbot_manager" model="res.groups">
+            <field name="name">Yardim Asistani Yoneticisi</field>
+            <field name="privilege_id" ref="odoo_help_assistant.privilege_chatbot"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="implied_by_ids" eval="[(4, ref('base.group_system'))]"/>
+        </record>
+
+        <record id="rule_chatbot_session_manager_all" model="ir.rule">
+            <field name="name">Yonetici tum sohbetleri gorebilir</field>
+            <field name="model_id" ref="model_odoo_chatbot_session"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <record id="rule_chatbot_message_manager_all" model="ir.rule">
+            <field name="name">Yonetici tum sohbet mesajlarini gorebilir</field>
+            <field name="model_id" ref="model_odoo_chatbot_message"/>
+            <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+        </record>
+
+        <record id="rule_chatbot_session_user_own" model="ir.rule">
+            <field name="name">Kullanici kendi sohbetlerini gorebilir</field>
+            <field name="model_id" ref="model_odoo_chatbot_session"/>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="domain_force">[('user_id', '=', user.id)]</field>
+        </record>
+
+        <record id="rule_chatbot_message_user_own" model="ir.rule">
+            <field name="name">Kullanici kendi sohbet mesajlarini gorebilir</field>
+            <field name="model_id" ref="model_odoo_chatbot_message"/>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="domain_force">[('user_id', '=', user.id)]</field>
+        </record>
+    </data>
+</odoo>
