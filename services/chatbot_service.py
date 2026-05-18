@@ -1,9 +1,21 @@
+import logging
+
 from odoo import _
 
 from .exceptions import ChatbotServiceError
+from .intent_detector import INTENT_ODOO, detect_intent
 from .llama_cpp_provider import LlamaCppProvider
 from .odoo_hints import build_hint_block
 from .ollama_provider import OllamaProvider
+from .prompt_templates import PROMPT_TEMPLATES
+from .rag_retriever import RagRetriever
+
+_logger = logging.getLogger(__name__)
+
+_FALLBACK_REPLY = (
+    "Üzgünüm, şu anda bir yanıt üretemiyorum. "
+    "Lütfen sorunuzu farklı bir şekilde sormayı deneyin veya daha sonra tekrar deneyin."
+)
 
 
 class ChatbotService:
@@ -42,7 +54,7 @@ class ChatbotService:
             "model_name": self.params.get_param("odoo_help_assistant.model_name", "llama3.2:3b"),
             "temperature": self._get_float("odoo_help_assistant.temperature", 0.2),
             "max_tokens": self._get_int("odoo_help_assistant.max_tokens", 300),
-            "timeout": self._get_int("odoo_help_assistant.timeout", 45),
+            "timeout": self._get_int("odoo_help_assistant.timeout", 120),
             "system_prompt": self.params.get_param("odoo_help_assistant.system_prompt", ""),
             "include_user_context": self._get_bool("odoo_help_assistant.include_user_context", True),
             "hint_layer_enabled": self._get_bool("odoo_help_assistant.hint_layer_enabled", True),
@@ -59,34 +71,48 @@ class ChatbotService:
         return provider_class(config)
 
     def _build_system_message(self, question, user_context):
+        intent = detect_intent(question)
         config = self.get_config()
-        prompt_parts = [config["system_prompt"].strip()]
-        if config["include_user_context"]:
-            user = self.env.user
-            prompt_parts.append(
-                "\n".join(
-                    [
-                        "Baglam bilgileri:",
-                        f"- Kullanici adi: {user.name}",
-                        f"- Kullanici dili: {user.lang or 'tr_TR'}",
-                        f"- Sirket: {self.env.company.name}",
-                    ]
-                )
-            )
-            if user_context.get("active_menu"):
-                prompt_parts.append(f"- Kullanici su anda su menuyle ilgili yardim istiyor olabilir: {user_context['active_menu']}")
-            if user_context.get("active_model"):
-                prompt_parts.append(f"- Ilgili model veya ekran: {user_context['active_model']}")
-        if config["hint_layer_enabled"]:
-            hints = build_hint_block(question)
-            if hints:
-                prompt_parts.append(
-                    "Odoo icin hazir ipuclari:\n" + "\n".join(f"- {hint}" for hint in hints)
-                )
-        prompt_parts.append(
-            "Cevap verirken kisa paragraflar kullan. Gerekirse numarali adimlar ver. Kesin olmayan bilgileri kesinmis gibi sunma."
-        )
-        return {"role": "system", "content": "\n\n".join(item for item in prompt_parts if item)}
+
+        # Pick the intent-specific template; fall back to the admin-configured prompt
+        base_prompt = PROMPT_TEMPLATES.get(intent) or config["system_prompt"].strip()
+        prompt_parts = [base_prompt]
+
+        # User context, RAG retrieval and domain hints only for Odoo questions
+        if intent == INTENT_ODOO:
+            if config["include_user_context"]:
+                user = self.env.user
+                ctx_lines = [
+                    "Bağlam bilgileri:",
+                    f"- Kullanıcı adı: {user.name}",
+                    f"- Kullanıcı dili: {user.lang or 'tr_TR'}",
+                    f"- Şirket: {self.env.company.name}",
+                ]
+                if user_context.get("active_menu"):
+                    ctx_lines.append(
+                        f"- Kullanıcı şu anda şu menüyle ilgili yardım istiyor olabilir: {user_context['active_menu']}"
+                    )
+                if user_context.get("active_model"):
+                    ctx_lines.append(f"- İlgili model veya ekran: {user_context['active_model']}")
+                prompt_parts.append("\n".join(ctx_lines))
+
+            # RAG: inject relevant documentation passages
+            try:
+                retriever = RagRetriever(self.env, config["base_url"])
+                rag_block = retriever.build_context_block(question)
+                if rag_block:
+                    prompt_parts.append(rag_block)
+            except Exception:
+                _logger.warning("RAG retrieval failed, continuing without context")
+
+            if config["hint_layer_enabled"]:
+                hints = build_hint_block(question)
+                if hints:
+                    prompt_parts.append(
+                        "Odoo için hazır ipuçları:\n" + "\n".join(f"- {hint}" for hint in hints)
+                    )
+
+        return {"role": "system", "content": "\n\n".join(p for p in prompt_parts if p)}
 
     def generate_reply(self, session, message, user_context, history):
         config = self.get_config()
@@ -103,4 +129,17 @@ class ChatbotService:
             messages.append({"role": "user", "content": message})
 
         provider = self._get_provider(config)
-        return provider.generate(messages)
+
+        try:
+            raw_reply = provider.generate(messages)
+        except ChatbotServiceError:
+            raise
+        except Exception as exc:
+            _logger.exception("Unexpected provider error")
+            raise ChatbotServiceError(_FALLBACK_REPLY) from exc
+
+        if not (raw_reply or "").strip():
+            _logger.warning("Provider returned empty reply for session %s", session.id)
+            return _FALLBACK_REPLY
+
+        return raw_reply

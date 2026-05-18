@@ -1,9 +1,9 @@
 {
     "name": "Odoo Yardim Asistani",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.2.0",
     "category": "Services",
     "summary": "Odoo kullanim rehberligi icin yerel yapay zeka destekli sohbet asistani",
-    "author": "Rasim Okutan",
+    "author": "OpenAI",
     "license": "LGPL-3",
     "depends": ["base", "web", "mail"],
     "data": [
@@ -11,6 +11,7 @@
         "security/ir.model.access.csv",
         "views/chatbot_views.xml",
         "views/res_config_settings_views.xml",
+        "views/rag_views.xml",
     ],
     "assets": {
         "web.assets_backend": [

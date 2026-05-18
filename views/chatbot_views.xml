@@ -64,7 +64,7 @@
         id="menu_odoo_help_assistant_root"
         name="Yardim Asistani"
         sequence="40"
-        groups="base.group_user"
+        groups="odoo_help_assistant.group_chatbot_user"
     />
 
     <menuitem
@@ -73,7 +73,7 @@
         parent="menu_odoo_help_assistant_root"
         action="action_odoo_help_assistant"
         sequence="1"
-        groups="base.group_user"
+        groups="odoo_help_assistant.group_chatbot_user"
     />
 
     <menuitem
@@ -82,6 +82,6 @@
         parent="menu_odoo_help_assistant_root"
         action="action_odoo_chatbot_session_manager"
         sequence="10"
-        groups="base.group_system"
+        groups="odoo_help_assistant.group_chatbot_manager"
     />
 </odoo>

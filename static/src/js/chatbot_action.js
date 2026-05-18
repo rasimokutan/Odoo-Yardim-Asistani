@@ -41,7 +41,8 @@ class OdooHelpAssistant extends Component {
             messages.push({
                 id: "pending-assistant",
                 role: "assistant",
-                content: "Yanit hazirlaniyor, lutfen bekleyin...",
+                content: "Yanıt hazırlanıyor, lütfen bekleyin...",
+                html_content: null,
                 timestamp: new Date().toISOString(),
             });
         }

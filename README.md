@@ -1,313 +1,360 @@
 # Odoo Yardım Asistanı
 
-Bu proje, Odoo 19 Community içinde çalışan basit bir yapay zekâ destekli sohbet modülüdür.
+Odoo 19 Community içinde çalışan, **yerel** yapay zekâ destekli Türkçe bir sohbet
+asistanı. Kullanıcı Odoo ekranından çıkmadan doğal dille soru sorar; asistan da
+ona resmi Odoo dokümantasyonundan beslenen, adım adım Türkçe cevaplar verir.
 
-Amaç şu:
-Odoo kullanan biri ekranda takıldığında, "Bunu nereden yapacağım?", "Hangi menüye girmeliyim?", "Bu işlem neden olmuyor?" gibi sorular sorabilsin ve modül de Türkçe şekilde yardımcı olsun.
+- Modül adı: `odoo_help_assistant`
+- Sürüm: `19.0.1.2.0`
+- Lisans: LGPL-3
+- LLM: Ollama (yerel — internet erişimi gerekmez)
+- Repo: <https://github.com/rasimokutan/Odoo-Yardim-Asistani>
 
-Ben bu modülü özellikle son kullanıcıya ve Odoo operatörlerine yardım etmesi için hazırladım. Yani bu modül kod üreten bir araç değil. Daha çok Odoo kullanımını anlatan bir yardımcı gibi düşünmek lazım.
+> Bu modül kod üreten bir araç **değildir**. Amacı son kullanıcıya Odoo
+> içindeki menü yolları, ekran adımları ve operasyonel sorular konusunda
+> rehberlik etmektir.
+
+---
+
+## İçindekiler
+
+1. [Ne işe yarıyor?](#ne-işe-yarıyor)
+2. [Mimari](#mimari)
+3. [Kurulum](#kurulum)
+4. [RAG (Doküman Tabanlı Cevap)](#rag-doküman-tabanlı-cevap)
+5. [Ayarlar](#ayarlar)
+6. [Kullanım](#kullanım)
+7. [Güvenlik & Yetkiler](#güvenlik--yetkiler)
+8. [Sorun Giderme](#sorun-giderme)
+9. [Geliştirici Notları](#geliştirici-notları)
+
+---
 
 ## Ne işe yarıyor?
 
-Bu modülle kullanıcı Odoo içinde bir sohbet ekranı açabiliyor ve mesela şunları sorabiliyor:
+Kullanıcı Odoo içinde bir sohbet ekranı açar ve şu tip soruları sorabilir:
 
-- Satış teklifi nasıl onaylanır?
-- Stok transferinde Doğrula butonu neden görünmüyor?
-- Faturayı ödeme ile nasıl eşleştiririm?
-- CRM fırsatında aktiviteyi nereden eklerim?
-- Satın alma siparişini hangi menüden bulurum?
+- "Satış teklifini nasıl onaylarım?"
+- "Stok transferinde Doğrula butonu neden görünmüyor?"
+- "Faturayı ödeme ile nasıl eşleştiririm?"
+- "CRM fırsatında aktiviteyi nereden eklerim?"
+- "Satın alma siparişini hangi menüden bulurum?"
 
-Modül cevapları Türkçe vermeye çalışır.
+Cevaplar varsayılan olarak **Türkçe** olarak gelir. Kullanıcı açıkça farklı bir
+dil isterse o dilde de yanıtlanabilir.
 
-## Öne çıkan özellikler
+### Öne çıkan özellikler
 
-- Odoo içinde çalışan sohbet ekranı
-- Türkçe odaklı cevaplar
-- Ollama ile yerel çalışma
-- Sohbet oturumu oluşturma
-- Mesaj geçmişini Odoo içinde saklama
-- Yönetici için geçmiş sohbetleri görme ekranı
-- Ayarlar kısmından model, URL, timeout gibi alanları değiştirebilme
-- Odoo satış, stok, muhasebe, CRM gibi başlıklarda küçük ipucu katmanı
+- Odoo içinden çalışan, Owl tabanlı sohbet ekranı
+- Niyet (intent) sınıflandırıcı: selamlama / Odoo sorusu / belirsiz
+- **RAG**: Resmi `odoo/documentation` reposundan indekslenmiş chunk'lardan
+  ilgili pasajları çekip yanıta enjekte eder
+- Yerel Ollama LLM — internet bağımlılığı yok
+- Konuşma geçmişi DB'de saklanır, kullanıcı/şirket izolasyonu uygulanır
+- Yönetici için tüm sohbetleri ve indeks durumunu görme ekranları
+- Türkçe ipucu (hint) katmanı: satış, stok, muhasebe, CRM gibi alanlar için
+  hazır kısa kılavuzlar
 
-## Kullanılan yapı
+---
 
-Bu modülde ana yapay zekâ sağlayıcısı olarak Ollama kullanılıyor.
+## Mimari
 
-Yani mantık şu şekilde:
+```
+Kullanıcı sorusu
+  → intent_detector       (greeting / odoo_question / unclear)
+  → prompt_templates      (intent'e göre sistem prompt seç)
+  → rag_retriever         (en alakalı 3 chunk'ı cosine similarity ile getir)
+  → chatbot_service       (prompt + history + RAG bağlamı + ipuçları)
+  → ollama_provider       (Ollama /api/chat)
+  → LLM yanıtı → DB'ye kaydet → frontend'e döndür
+```
 
-1. Kullanıcı Odoo içinde soru yazar.
-2. Modül bu soruyu backend tarafında hazırlar.
-3. İstek yerel Ollama servisine gider.
-4. Gelen cevap tekrar Odoo ekranına yazılır.
+### Veritabanı modelleri
 
-Şu an ana hedef basit ve çalışan bir yapı kurmak olduğu için ekstra karmaşık şeyler eklenmedi.
+| Tablo                   | Amaç                                              |
+| ----------------------- | ------------------------------------------------- |
+| `odoo_chatbot_session`  | Sohbet oturumu                                    |
+| `odoo_chatbot_message`  | Bireysel mesaj (role: user / assistant / system)  |
+| `odoo_rag_chunk`        | RST chunk + 768-dim embedding (JSON)              |
+| `odoo_rag_index_wizard` | Transient — indeksleme sihirbazı                  |
 
-Özellikle şunlar bu sürümde yok:
+### Dosya yapısı
 
-- RAG
-- vektör veritabanı
-- belge yükleyip analiz etme
-- otomatik işlem yapan ajan sistemi
-- tehlikeli otomasyonlar
+```
+odoo_help_assistant/
+├── __manifest__.py
+├── controllers/main.py                 JSON-RPC endpoint'leri
+├── models/
+│   ├── chatbot_session.py              Oturum modeli + send_chat_message()
+│   ├── chatbot_message.py              Mesaj modeli
+│   ├── rag_chunk.py                    RAG chunk + embedding
+│   └── res_config_settings.py          Ayarlar
+├── services/
+│   ├── chatbot_service.py              Prompt inşası, RAG, LLM çağrısı
+│   ├── intent_detector.py              Niyet sınıflandırıcı
+│   ├── prompt_templates.py             Niyet başına sistem prompt
+│   ├── ollama_provider.py              Ollama /api/chat istemcisi
+│   ├── embedding_service.py            Ollama /api/embed istemcisi
+│   ├── rag_retriever.py                Cosine similarity arama
+│   ├── doc_indexer.py                  git clone → chunk → embed → DB
+│   └── odoo_hints.py                   Statik Türkçe ipuçları
+├── wizards/index_docs_wizard.py        İndeksleme UI
+├── scripts/index_docs_cli.py           Standalone CLI indekser
+├── views/                              XML görünüm + menüler
+├── static/src/                         Owl arayüz + SCSS
+├── security/                           Gruplar + record rule
+└── tests/test_chatbot.py
+```
 
-## Klasör yapısı
-
-Projede temel olarak şu bölümler var:
-
-- `models/` : sohbet oturumu, mesajlar ve ayarlar
-- `controllers/` : frontend ile backend konuşması
-- `services/` : Ollama isteğini hazırlayan servis katmanı
-- `views/` : menüler, ayar ekranı, yönetim ekranları
-- `static/src/` : Owl arayüzü, şablonlar ve stil dosyaları
-- `security/` : erişim hakları ve record rule tanımları
-- `tests/` : temel testler
+---
 
 ## Kurulum
 
-### 1. Modülü addons path içine koyun
+### Ön koşullar
 
-Bu modül genelde şöyle bir yere konur:
+- Odoo 19 Community
+- PostgreSQL (Odoo'nun bağlı olduğu)
+- [Ollama](https://ollama.com/) yüklü ve servis çalışıyor olmalı
+- Sistem PATH'inde `git` bulunmalı (indeksleme için repo klonu)
+- (Opsiyonel) `numpy` — cosine similarity'i hızlandırır
 
-```python
+### 1. Ollama modellerini indir
+
+```bash
+ollama pull llama3.2:3b           # Türkçe için: hafif ve hızlı
+ollama pull nomic-embed-text      # RAG embedding modeli (zorunlu)
+```
+
+Daha kaliteli Türkçe cevap için (~7B sınıfı):
+
+```bash
+ollama pull qwen2.5:7b
+```
+
+### 2. Modülü addons path'e koy
+
+```
 custom_addons/odoo_help_assistant
 ```
 
-Sonra `odoo.conf` içinde bu klasörün `addons_path` içine dahil olduğundan emin olun.
+`odoo.conf` içinde `addons_path` bu klasörü kapsamalıdır.
 
-### 2. Uygulama listesini yenileyin
+### 3. Modülü yükle
 
-Odoo içinde geliştirici modunu açın.
+Odoo'yu başlatın → Uygulamalar → Uygulama listesini güncelle →
+"Odoo Yardım Asistanı"nı yükle.
 
-Ardından uygulama listesini yenileyin.
+CLI ile:
 
-### 3. Modülü yükleyin
-
-Uygulamalar ekranında:
-
-`Odoo Yardım Asistanı`
-
-modülünü yükleyin.
-
-## Güncelleme
-
-Kod değişikliği yaptıktan sonra genelde şu komut yeterli olur:
-
-```bash
-odoo-bin -d <veritabanı_adı> -u odoo_help_assistant --stop-after-init
+```powershell
+venv\Scripts\python.exe odoo-bin -c odoo.conf -d odoo19_v1 ^
+    -i odoo_help_assistant --stop-after-init
 ```
 
-Sonra Odoo’yu tekrar başlatıp tarayıcıda `Ctrl+F5` yapmak iyi olur.
+### 4. Sohbet ekranını aç
 
-Frontend dosyası değiştiyse bazen şu şekilde açmak da işe yarar:
+Sol menüden **Yardım Asistanı** uygulamasına girin ve sohbete başlayın.
 
-```text
-http://localhost:8069/web?debug=assets
+---
+
+## RAG (Doküman Tabanlı Cevap)
+
+Asistan, resmi
+[odoo/documentation](https://github.com/odoo/documentation) reposundan
+indekslenmiş Odoo dokümantasyonunu kullanır.
+
+### Nasıl çalışır?
+
+1. Repo lokal cache'e `git clone --depth=1 --branch 19.0` ile çekilir.
+2. `content/applications/` altındaki seçili alt klasörler taranır.
+3. Her `.rst` dosyası ~350 kelimelik, 50 kelime örtüşmeli chunk'lara bölünür.
+4. Her chunk `nomic-embed-text` ile 768-boyutlu vektöre çevrilir.
+5. Vektörler `odoo_rag_chunk` tablosuna JSON olarak yazılır.
+6. Soru geldiğinde aynı modelle embed edilir, cosine similarity ile en
+   alakalı 3 chunk seçilir ve sistem prompt'una eklenir.
+
+> **Neden API değil, `git clone`?** GitHub REST API anonim kullanımda
+> saatte 60 istek ile sınırlıdır. Eski indeksleyici her alt klasör için ayrı
+> API çağrısı yapıyor, limit aşıldığında sessizce boş liste döndürüyor ve
+> sonuç "0/0/0 chunk" oluyordu. Yeni indeksleyici doğrudan `git` üzerinden
+> çalışır, rate-limit problemi yoktur.
+
+### A) Web wizard ile indeksleme
+
+1. Yardım Asistanı → **Dokümantasyonu İndeksle**
+2. Branch: `19.0`
+3. Maksimum dosya: 150 (varsayılan) → 5-8 dakika
+4. **İndekslemeyi Başlat** butonuna bas
+
+> Tarayıcı çok uzun süren istekleri zaman aşımına uğratırsa B yöntemini
+> kullanın.
+
+### B) Standalone CLI ile indeksleme
+
+Odoo çalışırken bile, terminalden:
+
+```powershell
+venv\Scripts\python.exe ^
+    custom_addons\odoo_help_assistant\scripts\index_docs_cli.py ^
+    --db odoo19_v1 --branch 19.0 --max-files 220
 ```
 
-## Ollama kurulumu
+Faydalı parametreler:
 
-## Windows
+| Parametre        | Açıklama                                            |
+| ---------------- | --------------------------------------------------- |
+| `--db`           | Hedef PostgreSQL veritabanı (varsayılan `odoo19_v1`) |
+| `--branch`       | Doküman branch'i (`19.0`, `18.0`, `17.0`)           |
+| `--max-files`    | Toplam dosya tavanı (varsayılan 80)                 |
+| `--per-section`  | Section başına dosya tavanı (yoksa eşit dağıtılır)  |
+| `--no-clear`     | Mevcut chunk'ları silmeden ekle                     |
+| `--dirs`         | Sadece belirli alt klasörleri tara                  |
 
-Ollama’yı şu adresten kurabilirsiniz:
+Ortam değişkenleri: `OLLAMA_URL`, `EMBED_MODEL`, `PGHOST`, `PGPORT`,
+`PGUSER`, `PGPASSWORD`.
 
-https://ollama.com/download
+### İndeks durumunu kontrol et
 
-Kurulumdan sonra çoğu durumda Ollama arka planda zaten açık olur.
+Yardım Asistanı → **İndeks Durumu** ekranı tüm chunk'ları listeler
+(title, section, kaynak URL).
 
-## Linux / macOS
+### Dengeli dağıtım
 
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
+Indekser tek bir büyük klasörün (örn. `inventory_and_mrp`) tüm kotayı
+yutmaması için round-robin uygular: `max_files` mevcut section sayısına
+bölünür ve dosyalar sırayla section'lardan toplanır.
+
+---
+
+## Ayarlar
+
+`Ayarlar → Yardım Asistanı` ekranından veya `ir.config_parameter` ile
+yönetilir.
+
+| Anahtar                                       | Varsayılan                  |
+| --------------------------------------------- | --------------------------- |
+| `odoo_help_assistant.chatbot_enabled`         | `True`                      |
+| `odoo_help_assistant.chatbot_provider`        | `ollama`                    |
+| `odoo_help_assistant.ollama_base_url`         | `http://127.0.0.1:11434`    |
+| `odoo_help_assistant.model_name`              | `llama3.2:3b`               |
+| `odoo_help_assistant.temperature`             | `0.2`                       |
+| `odoo_help_assistant.max_tokens`              | `300`                       |
+| `odoo_help_assistant.timeout`                 | `120`                       |
+| `odoo_help_assistant.include_user_context`    | `True`                      |
+| `odoo_help_assistant.hint_layer_enabled`      | `True`                      |
+| `odoo_help_assistant.system_prompt`           | (varsayılan TR prompt)      |
+
+---
+
+## Kullanım
+
+1. Sol menüden **Yardım Asistanı**'na git
+2. **+ Yeni Sohbet** ile oturum aç
+3. Sorunu Türkçe yaz → asistan yanıt verir
+4. Geçmiş otomatik kaydedilir, son ~5 alışveriş prompt'a dahil edilir
+
+### Niyet (intent) tipleri
+
+| Intent          | Tetikleyici                           | Yanıt stratejisi                    |
+| --------------- | ------------------------------------- | ----------------------------------- |
+| `greeting`      | Selamlama anahtar kelimeleri          | 2-3 cümle kısa karşılama            |
+| `odoo_question` | Odoo anahtar kelimeleri / uzun soru   | RAG + ipuçları + kullanıcı bağlamı  |
+| `unclear`       | Kısa, belirsiz                        | Hangi modül olduğunu sor            |
+
+---
+
+## Güvenlik & Yetkiler
+
+| Grup                       | Yetki                                                       |
+| -------------------------- | ----------------------------------------------------------- |
+| `group_chatbot_user`       | Kendi sohbet oturumlarını okur ve yenisini oluşturur        |
+| `group_chatbot_manager`    | Şirketteki tüm oturumları görür, siler, RAG indeksleyebilir |
+
+Record rule'lar şirket ve kullanıcı izolasyonu uygular. Mesajlar düz metin
+olarak saklanır, ekranda `t-esc` ile XSS güvenli render edilir.
+
+---
+
+## Sorun Giderme
+
+### "İndeksleme tamamlandı ama 0 chunk eklendi"
+
+Eski sürümdeki GitHub API rate-limit bug'ı. Sürüm `19.0.1.2.0` ile çözüldü:
+indeksleme artık `git clone` üzerinden çalışıyor. Modülü güncellediğinizden
+emin olun:
+
+```powershell
+venv\Scripts\python.exe odoo-bin -c odoo.conf -d odoo19_v1 ^
+    -u odoo_help_assistant --stop-after-init
 ```
 
-## Model indirme
+### "git komutu bulunamadı"
 
-İlk deneme için hafif bir model kullanmak daha rahat olur.
+Git for Windows yükleyin ve PATH'e ekleyin: <https://git-scm.com/download/win>
 
-Örnek:
+### "Ollama servisine bağlanılamadı"
 
-```bash
-ollama pull llama3.2:3b
-```
+Ollama servisi çalışıyor mu?
 
-Alternatif:
-
-```bash
-ollama pull qwen2.5:3b
-```
-
-## Ollama çalışıyor mu nasıl anlarım?
-
-Şu komutla yüklü modelleri görebilirsiniz:
-
-```bash
-ollama list
-```
-
-Modeli direkt test etmek için:
-
-```bash
-ollama run llama3.2:3b
-```
-
-Eğer terminalde cevap üretiyorsa büyük ihtimalle servis düzgündür.
-
-Bir de HTTP tarafını test etmek isterseniz:
-
-```bash
+```powershell
 curl http://127.0.0.1:11434/api/tags
 ```
 
-Bu istek cevap veriyorsa Odoo da aynı adrese bağlanabilir.
+Modeller yüklü mü? `ollama list` ile kontrol edin.
 
-## Önemli not
+### "nomic-embed-text bulunamadı"
 
-Bazı Windows kurulumlarında `ollama serve` komutunu tekrar çalıştırınca şu hata gelir:
-
-`Only one usage of each socket address ... is normally permitted`
-
-Bu genelde kötü bir şey değildir.
-Çoğu zaman sadece şu anlama gelir:
-
-Ollama zaten çalışıyor.
-
-Yani bu hatayı görünce önce tekrar servis açmaya çalışmak yerine `ollama list` veya `curl http://127.0.0.1:11434/api/tags` ile kontrol etmek daha doğru olur.
-
-## Odoo ayarları nasıl olmalı?
-
-`Ayarlar > Odoo Yardım Asistanı` bölümünde genel olarak şu değerler iş görür:
-
-- Yardım asistanı aktif: açık
-- LLM sağlayıcısı: Ollama
-- Ollama adresi: `http://127.0.0.1:11434`
-- Model adı: `llama3.2:3b`
-- Yaratıcılık seviyesi: `0.2`
-- Azami cevap uzunluğu: `300`
-- Zaman aşımı: `45`
-
-## Dikkat edilmesi gereken şey
-
-URL yanlış yazılırsa modül cevap üretemez.
-
-Doğru örnek:
-
-```text
-http://127.0.0.1:11434
+```powershell
+ollama pull nomic-embed-text
 ```
 
-Yanlış örnek:
+### Cevaplar yavaş geliyor
 
-```text
-http://127.0.0.1:111434
+- Daha küçük model deneyin: `llama3.2:3b` (varsayılan)
+- `max_tokens` değerini düşürün (örn. 250)
+- Ollama'ya GPU verin (CPU çok yavaş kalır)
+
+### Cevaplar Odoo dışına çıkıyor / yanlış
+
+- RAG indeksinin dolu olduğundan emin olun: **İndeks Durumu** ekranına bakın
+- Sistem prompt'unu sertleştirin: `Ayarlar → Yardım Asistanı → Sistem Prompt`
+- `hint_layer_enabled` açık olsun
+
+---
+
+## Geliştirici Notları
+
+### Testleri çalıştır
+
+```powershell
+venv\Scripts\python.exe odoo-bin -c odoo.conf -d odoo19_v1 ^
+    --test-tags=odoo_help_assistant --stop-after-init
 ```
 
-Port yanlışsa bağlantı kurulamaz.
+### Manifest sürüm geçmişi
 
-## Modül nasıl kullanılır?
+| Sürüm        | Değişiklik                                                    |
+| ------------ | ------------------------------------------------------------- |
+| `19.0.1.2.0` | İndeksleme `git clone` tabanlıya geçti; per-section dağıtım; CLI script eklendi |
+| `19.0.1.1.0` | RAG + `nomic-embed-text` desteği                              |
+| `19.0.1.0.0` | İlk sürüm: Ollama + Owl arayüz + intent layer                 |
 
-1. Odoo içinde `Yardım Asistanı > Sohbet` menüsüne girin.
-2. `Yeni Sohbet` butonuna tıklayın.
-3. Sorunuzu yazın.
-4. Asistan cevap versin.
+### Potansiyel geliştirmeler
 
-Örnek sorular:
+- [ ] pgvector entegrasyonu (cosine similarity SQL'e taşınır)
+- [ ] Ollama streaming (`stream: true`) — karakter karakter yanıt
+- [ ] Uzun konuşma özetleme
+- [ ] Otomatik yeniden indeksleme (cron job)
+- [ ] llama.cpp provider'ı tamamla
+- [ ] Beğen/beğenme geri bildirimi → prompt iyileştirme
 
-- Satış teklifini nasıl onaylarım?
-- Müşteri ödemesini faturaya nasıl bağlarım?
-- Stok transferi neden beklemede kaldı?
-- Muhasebede taslak kayıtları nereden görebilirim?
+---
 
-## Sorun giderme
+## Lisans
 
-### 1. Sohbet ekranı açılıyor ama cevap gelmiyor
+LGPL-3
 
-Şunları kontrol edin:
+## Yazar
 
-- Ollama gerçekten çalışıyor mu?
-- Odoo ayarındaki URL doğru mu?
-- Model adı doğru mu?
-- Model gerçekten bilgisayarda yüklü mü?
-
-Kontrol komutları:
-
-```bash
-ollama list
-ollama run llama3.2:3b
-```
-
-### 2. “Yardım asistanı pasif durumda” uyarısı
-
-Genelde ayar kaydedilmemiş olabilir.
-
-Şunları yapın:
-
-1. Ayarlara girin
-2. Yardım asistanı aktif kutusunu kontrol edin
-3. Kaydedin
-4. Modülü güncellediyseniz tarayıcıyı yenileyin
-
-### 3. Yeni sohbet oluştururken hata
-
-Bu durumda genelde:
-
-- modül güncellemesi yapılmamıştır
-- eski asset dosyası çalışıyordur
-- tarayıcı cache’te eski JS kalmıştır
-
-Yapılacaklar:
-
-```bash
-odoo-bin -d <veritabanı_adı> -u odoo_help_assistant --stop-after-init
-```
-
-Sonra:
-
-- Odoo’yu yeniden başlatın
-- `?debug=assets` ile açın
-- `Ctrl+F5` yapın
-
-### 4. Ollama bağlantı hatası
-
-Beklenen doğru adres çoğu yerel kurulumda şudur:
-
-```text
-http://127.0.0.1:11434
-```
-
-Eğer Odoo başka ortamda çalışıyorsa bu adres değişebilir ama masaüstü geliştirme için çoğunlukla bu yeterlidir.
-
-## Geliştirme notları
-
-Bu proje özellikle aşırı karmaşık yapılmadı.
-
-İsteyerek basit bırakılan şeyler var:
-
-- prompt yapısı sade
-- ek bilgi katmanı küçük tutuldu
-- servis katmanı ileride genişletilebilir şekilde bırakıldı
-
-İleride yapılabilecek geliştirmeler:
-
-- Ayarlara “bağlantıyı test et” butonu eklemek
-- llama.cpp uyumlu provider eklemek
-- daha iyi mesaj formatlama
-- Odoo ekran bağlamını daha iyi yakalamak
-- daha iyi hata ekranları
-
-## Test
-
-Temel testleri çalıştırmak için:
-
-```bash
-odoo-bin -d <veritabanı_adı> --test-enable --stop-after-init -i odoo_help_assistant
-```
-
-## Son söz
-
-Bu modül mükemmel bir ürün gibi değil, çalışan ve geliştirilmeye açık bir yardımcı araç gibi düşünüldü.
-
-Benim hedefim şuydu:
-Odoo içinde gerçekten işe yarayan, yerel çalışan, Türkçe odaklı ve uğraştırmayan bir yardımcı sohbet modülü çıkarmak.
-
-Eğer geliştirirken Odoo’da yeniyseniz, bu proje kurcalamak ve öğrenmek için de güzel bir örnek olabilir.
+[Rasim Okutan](https://github.com/rasimokutan) — tez projesi kapsamında
+geliştirilmiştir.

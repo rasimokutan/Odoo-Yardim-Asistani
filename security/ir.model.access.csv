@@ -1,5 +1,8 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_odoo_chatbot_session_user,access.odoo.chatbot.session.user,model_odoo_chatbot_session,base.group_user,1,1,1,0
-access_odoo_chatbot_session_manager,access.odoo.chatbot.session.manager,model_odoo_chatbot_session,base.group_system,1,1,1,1
-access_odoo_chatbot_message_user,access.odoo.chatbot.message.user,model_odoo_chatbot_message,base.group_user,1,0,1,0
-access_odoo_chatbot_message_manager,access.odoo.chatbot.message.manager,model_odoo_chatbot_message,base.group_system,1,1,1,1
+access_odoo_chatbot_session_user,access.odoo.chatbot.session.user,model_odoo_chatbot_session,odoo_help_assistant.group_chatbot_user,1,1,1,0
+access_odoo_chatbot_session_manager,access.odoo.chatbot.session.manager,model_odoo_chatbot_session,odoo_help_assistant.group_chatbot_manager,1,1,1,1
+access_odoo_chatbot_message_user,access.odoo.chatbot.message.user,model_odoo_chatbot_message,odoo_help_assistant.group_chatbot_user,1,0,1,0
+access_odoo_chatbot_message_manager,access.odoo.chatbot.message.manager,model_odoo_chatbot_message,odoo_help_assistant.group_chatbot_manager,1,1,1,1
+access_odoo_rag_chunk_user,access.odoo.rag.chunk.user,model_odoo_rag_chunk,odoo_help_assistant.group_chatbot_user,1,0,0,0
+access_odoo_rag_chunk_manager,access.odoo.rag.chunk.manager,model_odoo_rag_chunk,odoo_help_assistant.group_chatbot_manager,1,1,1,1
+access_odoo_rag_index_wizard,access.odoo.rag.index.wizard,model_odoo_rag_index_wizard,odoo_help_assistant.group_chatbot_manager,1,1,1,1

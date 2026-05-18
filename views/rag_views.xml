@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Indexing Wizard Form View -->
+    <record id="view_rag_index_wizard_form" model="ir.ui.view">
+        <field name="name">odoo.rag.index.wizard.form</field>
+        <field name="model">odoo.rag.index.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Odoo Dokümantasyonu İndeksleme">
+                <group>
+                    <group string="Yapılandırma">
+                        <field name="branch"/>
+                        <field name="max_files"/>
+                    </group>
+                    <group string="Bilgi">
+                        <div colspan="2" class="alert alert-info" role="alert">
+                            <strong>Nasıl çalışır?</strong><br/>
+                            1. odoo/documentation deposu lokale `git clone` ile çekilir
+                              (ilk seferde ~50 MB, sonra fast-forward).<br/>
+                            2. Seçili sürümün `content/applications/` altındaki RST
+                              dosyaları taranır.<br/>
+                            3. Her belge ~350 kelimelik parçalara (chunk) bölünür.<br/>
+                            4. nomic-embed-text modeli ile her parça vektöre çevrilir.<br/>
+                            5. Vektörler veritabanına kaydedilir.<br/>
+                            <br/>
+                            <strong>Ön koşul:</strong>
+                            <ul>
+                                <li>Ollama: <code>ollama pull nomic-embed-text</code></li>
+                                <li>Sistem PATH'inde <code>git</code> bulunmalıdır.</li>
+                            </ul>
+                            <strong>Not:</strong> 150 dosya ≈ 5-8 dakika. Web istekleri
+                            tarayıcıda zaman aşımına uğrarsa terminalde
+                            <code>scripts/index_docs_cli.py</code> alternatifini kullanın.
+                        </div>
+                    </group>
+                </group>
+                <group invisible="state == 'draft'">
+                    <field name="result_summary" readonly="1"/>
+                </group>
+                <footer>
+                    <button
+                        name="action_start_indexing"
+                        string="İndekslemeyi Başlat"
+                        type="object"
+                        class="btn-primary"
+                        invisible="state == 'done'"/>
+                    <button
+                        name="action_clear_index"
+                        string="İndeksi Temizle"
+                        type="object"
+                        class="btn-secondary"
+                        confirm="Tüm chunk'lar silinecek. Emin misiniz?"/>
+                    <button string="Kapat" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Open Wizard Action -->
+    <record id="action_rag_index_wizard" model="ir.actions.act_window">
+        <field name="name">Dokümantasyonu İndeksle</field>
+        <field name="res_model">odoo.rag.index.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- RAG Chunks List View -->
+    <record id="view_rag_chunk_tree" model="ir.ui.view">
+        <field name="name">odoo.rag.chunk.tree</field>
+        <field name="model">odoo.rag.chunk</field>
+        <field name="arch" type="xml">
+            <list string="İndekslenmiş Chunk'lar">
+                <field name="title"/>
+                <field name="section"/>
+                <field name="chunk_index"/>
+                <field name="source_url" widget="url"/>
+                <field name="content" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_rag_chunks" model="ir.actions.act_window">
+        <field name="name">İndekslenmiş Parçalar</field>
+        <field name="res_model">odoo.rag.chunk</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <!-- Menu items -->
+    <menuitem
+        id="menu_rag_index"
+        name="Dokümantasyonu İndeksle"
+        parent="menu_odoo_help_assistant_root"
+        action="action_rag_index_wizard"
+        groups="odoo_help_assistant.group_chatbot_manager"
+        sequence="20"/>
+
+    <menuitem
+        id="menu_rag_chunks"
+        name="İndeks Durumu"
+        parent="menu_odoo_help_assistant_root"
+        action="action_rag_chunks"
+        groups="odoo_help_assistant.group_chatbot_manager"
+        sequence="30"/>
+</odoo>
