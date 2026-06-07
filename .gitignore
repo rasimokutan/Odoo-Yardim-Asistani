@@ -14,3 +14,7 @@ Thumbs.db
 .ruff_cache/
 
 *.log
+
+# Yerel AI arac artiklari
+.claude/
+CLAUDE.md

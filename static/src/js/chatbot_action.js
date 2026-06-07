@@ -6,6 +6,13 @@ import { useService } from "@web/core/utils/hooks";
 import { Component, onWillStart, useRef, useState } from "@odoo/owl";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 
+const EXAMPLE_QUESTIONS = [
+    "Satış teklifini nasıl onaylarım?",
+    "Stok transferinde nereden işlem yaparım?",
+    "Fatura ödeme eşleştirmesi neden görünmüyor?",
+    "Yeni bir ürün nasıl tanımlarım?",
+];
+
 class OdooHelpAssistant extends Component {
     static template = "odoo_help_assistant.ChatbotAction";
     static props = { ...standardActionServiceProps };
@@ -13,6 +20,11 @@ class OdooHelpAssistant extends Component {
     setup() {
         this.notification = useService("notification");
         this.messageListRef = useRef("messageList");
+        // Sablonda kullanilan ikonlar (emoji glyph'leri)
+        this.ASSISTANT_GLYPH = "\u{1F916}";
+        this.USER_GLYPH = "\u{1F9D1}";
+        this.SEND_GLYPH = "\u{27A4}";
+        this.exampleQuestions = EXAMPLE_QUESTIONS;
         this.state = useState({
             canUseChatbot: false,
             chatbotEnabled: true,
@@ -41,7 +53,8 @@ class OdooHelpAssistant extends Component {
             messages.push({
                 id: "pending-assistant",
                 role: "assistant",
-                content: "Yanıt hazırlanıyor, lütfen bekleyin...",
+                content: "",
+                pending: true,
                 html_content: null,
                 timestamp: new Date().toISOString(),
             });
@@ -147,6 +160,17 @@ class OdooHelpAssistant extends Component {
         if (ev.key === "Enter" && !ev.shiftKey) {
             ev.preventDefault();
             this.onSendMessage();
+        }
+    }
+
+    async onExampleClick(ev) {
+        if (this.state.sending) {
+            return;
+        }
+        const question = ev.currentTarget.dataset.question;
+        if (question) {
+            this.state.draft = question;
+            await this.onSendMessage();
         }
     }
 
